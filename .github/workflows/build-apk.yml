@@ -27,3 +27,5 @@ jobs:
         with:
           name: iPhoneStyleKeyboard-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+
+# verified build trigger
