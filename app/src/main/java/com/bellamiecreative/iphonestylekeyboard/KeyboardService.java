@@ -23,6 +23,9 @@ public class KeyboardService extends InputMethodService {
     private boolean symbols = false;
     private boolean shifted = false;
     private boolean kurdish = false;
+    private boolean capsLock = false;
+    private PopupWindow emojiPopup;
+    private PopupWindow longPressPopup;
 
     private final String[][] EN = {
         {"q","w","e","r","t","y","u","i","o","p"},
@@ -48,6 +51,7 @@ public class KeyboardService extends InputMethodService {
     @Override public void onStartInput(EditorInfo attribute, boolean restarting) {
         super.onStartInput(attribute, restarting);
         shifted = false;
+        capsLock = false;
         symbols = false;
     }
 
@@ -120,6 +124,10 @@ public class KeyboardService extends InputMethodService {
         b.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
         b.setBackground(makeKeyBackground(key));
         b.setOnClickListener(v -> press(key));
+        if (!key.equals("⌫") && !key.equals("shift") && !key.equals("space")
+                && !key.equals("🌐") && !key.equals("😊") && key.length() == 1) {
+            b.setOnLongClickListener(v -> { showLongPress(key, b); return true; });
+        }
         return b;
     }
 
@@ -176,11 +184,16 @@ public class KeyboardService extends InputMethodService {
                 else ic.deleteSurroundingText(1,0);
                 return;
             }
-            if (key.equals("shift")) { shifted=!shifted; rebuild(); return; }
+            if (key.equals("shift")) {
+            if (shifted && !capsLock) capsLock = true;
+            else if (capsLock) capsLock = false;
+            else shifted = true;
+            rebuild(); return;
+        }
             if (key.equals("123")) { symbols=true; shifted=false; rebuild(); return; }
             if (key.equals("ABC")) { symbols=false; shifted=false; rebuild(); return; }
-            if (key.equals("🌐")) { kurdish=!kurdish; symbols=false; shifted=false; rebuild(); return; }
-            if (key.equals("😊")) { ic.commitText("😀",1); return; }
+            if (key.equals("🌐")) { kurdish=!kurdish; symbols=false; shifted=false; capsLock=false; rebuild(); return; }
+            if (key.equals("😊")) { showEmojiPopup(); return; }
             if (key.equals("space")) { ic.commitText(" ",1); return; }
 
             if (key.equals("return") || key.equals("done") || key.equals("go") || key.equals("next")
