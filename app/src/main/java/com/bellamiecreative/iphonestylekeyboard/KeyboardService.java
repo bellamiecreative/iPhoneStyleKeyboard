@@ -237,6 +237,100 @@ public class KeyboardService extends InputMethodService {
         setInputView(root);
     }
 
+
+    private void showEmojiPopup() {
+        if (root == null) return;
+        final String[] emojis = {"😀","😂","🤣","😊","😍","🥰","😘","😎","😭","😡","👍","👎","👏","🙏","❤️","🔥","🎉","✨","💯","✅","❌","⭐","🌹","☀️","🌙","🍎","🍕","☕","⚽","🎵","🚗","✈️","🏠","💙","💚","💛","💜","🤍","🤝","🙌","💪","👀"};
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(8), dp(8), dp(8), dp(8));
+        box.setBackgroundColor(darkMode() ? Color.rgb(35,35,38) : Color.WHITE);
+        LinearLayout row = null;
+        int count = 0;
+        for (String emoji : emojis) {
+            if (count % 7 == 0) {
+                row = new LinearLayout(this);
+                row.setGravity(Gravity.CENTER);
+                box.addView(row, new LinearLayout.LayoutParams(-1, dp(48)));
+            }
+            Button b = new Button(this);
+            b.setText(emoji);
+            b.setTextSize(22);
+            b.setAllCaps(false);
+            b.setPadding(0,0,0,0);
+            b.setMinHeight(0);
+            b.setMinWidth(0);
+            b.setBackgroundColor(Color.TRANSPARENT);
+            final String value = emoji;
+            b.setOnClickListener(v -> {
+                InputConnection ic = getCurrentInputConnection();
+                if (ic != null) {
+                    try { ic.commitText(value, 1); } catch (RuntimeException ignored) {}
+                }
+                if (emojiPopup != null) emojiPopup.dismiss();
+            });
+            row.addView(b, new LinearLayout.LayoutParams(0, dp(46), 1f));
+            count++;
+        }
+        emojiPopup = new PopupWindow(box, -1, dp(260), true);
+        emojiPopup.setOutsideTouchable(true);
+        emojiPopup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        emojiPopup.setElevation(dp(8));
+        try {
+            emojiPopup.showAtLocation(root, Gravity.BOTTOM, 0, dp(235));
+        } catch (RuntimeException ignored) {
+            emojiPopup.dismiss();
+        }
+    }
+
+    private void showLongPress(String key, Button anchor) {
+        String alternatives = null;
+        switch (key) {
+            case "a": alternatives = "áàäâãå"; break;
+            case "e": alternatives = "éèëê"; break;
+            case "i": alternatives = "íìïî"; break;
+            case "o": alternatives = "óòöôõ"; break;
+            case "u": alternatives = "úùüû"; break;
+            case "n": alternatives = "ñ"; break;
+            case "c": alternatives = "ç"; break;
+            case "s": alternatives = "ß"; break;
+            case "y": alternatives = "ýÿ"; break;
+            case ".": alternatives = "…"; break;
+            case "-": alternatives = "–—"; break;
+            default: return;
+        }
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.HORIZONTAL);
+        box.setPadding(dp(6), dp(4), dp(6), dp(4));
+        box.setBackgroundColor(darkMode() ? Color.rgb(45,45,48) : Color.WHITE);
+        for (int i = 0; i < alternatives.length(); i++) {
+            String alt = String.valueOf(alternatives.charAt(i));
+            Button b = makeKey(alt);
+            b.setTextSize(20);
+            b.setOnLongClickListener(null);
+            final String value = alt;
+            b.setOnClickListener(v -> {
+                InputConnection ic = getCurrentInputConnection();
+                if (ic != null) {
+                    try { ic.commitText(value, 1); } catch (RuntimeException ignored) {}
+                }
+                if (longPressPopup != null) longPressPopup.dismiss();
+            });
+            box.addView(b, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        }
+        longPressPopup = new PopupWindow(box, -2, dp(56), true);
+        longPressPopup.setOutsideTouchable(true);
+        longPressPopup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        longPressPopup.setElevation(dp(8));
+        try {
+            int[] loc = new int[2];
+            anchor.getLocationOnScreen(loc);
+            longPressPopup.showAtLocation(root, Gravity.TOP | Gravity.START, Math.max(0, loc[0] - dp(10)), Math.max(0, loc[1] - dp(60)));
+        } catch (RuntimeException ignored) {
+            longPressPopup.dismiss();
+        }
+    }
+
     private void haptic() {
         try {
             Vibrator v = (Vibrator)getSystemService(VIBRATOR_SERVICE);
