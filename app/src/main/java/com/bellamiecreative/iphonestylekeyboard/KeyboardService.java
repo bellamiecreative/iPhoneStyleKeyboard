@@ -45,6 +45,12 @@ public class KeyboardService extends InputMethodService {
         return root;
     }
 
+    @Override public void onStartInput(EditorInfo attribute, boolean restarting) {
+        super.onStartInput(attribute, restarting);
+        shifted = false;
+        symbols = false;
+    }
+
     private int dp(float v) {
         return (int)(v * getResources().getDisplayMetrics().density + 0.5f);
     }
@@ -163,34 +169,38 @@ public class KeyboardService extends InputMethodService {
         InputConnection ic = getCurrentInputConnection();
         if (ic == null) return;
 
-        if (key.equals("⌫")) {
-            CharSequence selected = ic.getSelectedText(0);
-            if (selected != null && selected.length() > 0) ic.commitText("",1);
-            else ic.deleteSurroundingText(1,0);
-            return;
-        }
-        if (key.equals("shift")) { shifted=!shifted; rebuild(); return; }
-        if (key.equals("123")) { symbols=true; shifted=false; rebuild(); return; }
-        if (key.equals("ABC")) { symbols=false; shifted=false; rebuild(); return; }
-        if (key.equals("🌐")) { kurdish=!kurdish; symbols=false; shifted=false; rebuild(); return; }
-        if (key.equals("😊")) { ic.commitText("😀",1); return; }
-        if (key.equals("space")) { ic.commitText(" ",1); return; }
+        try {
+            if (key.equals("⌫")) {
+                CharSequence selected = ic.getSelectedText(0);
+                if (selected != null && selected.length() > 0) ic.commitText("",1);
+                else ic.deleteSurroundingText(1,0);
+                return;
+            }
+            if (key.equals("shift")) { shifted=!shifted; rebuild(); return; }
+            if (key.equals("123")) { symbols=true; shifted=false; rebuild(); return; }
+            if (key.equals("ABC")) { symbols=false; shifted=false; rebuild(); return; }
+            if (key.equals("🌐")) { kurdish=!kurdish; symbols=false; shifted=false; rebuild(); return; }
+            if (key.equals("😊")) { ic.commitText("😀",1); return; }
+            if (key.equals("space")) { ic.commitText(" ",1); return; }
 
-        if (key.equals("return") || key.equals("done") || key.equals("go") || key.equals("next")
-                || key.equals("search") || key.equals("send")) {
-            int action = getEditorAction();
-            if (action != EditorInfo.IME_ACTION_NONE) ic.performEditorAction(action);
-            else sendEnter(ic);
-            return;
-        }
+            if (key.equals("return") || key.equals("done") || key.equals("go") || key.equals("next")
+                    || key.equals("search") || key.equals("send")) {
+                int action = getEditorAction();
+                if (action != EditorInfo.IME_ACTION_NONE) ic.performEditorAction(action);
+                else sendEnter(ic);
+                return;
+            }
 
-        String out = key;
-        if (!symbols && !kurdish && shifted) {
-            out = key.toUpperCase(Locale.ROOT);
-            shifted=false;
-            rebuild();
+            String out = key;
+            if (!symbols && !kurdish && shifted) {
+                out = key.toUpperCase(Locale.ROOT);
+                shifted=false;
+                rebuild();
+            }
+            ic.commitText(out,1);
+        } catch (RuntimeException ignored) {
+            // Never let one bad editor connection crash the keyboard service.
         }
-        ic.commitText(out,1);
     }
 
     private int getEditorAction() {
@@ -201,16 +211,30 @@ public class KeyboardService extends InputMethodService {
     }
 
     private void sendEnter(InputConnection ic) {
-        ic.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_ENTER));
-        ic.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_ENTER));
+        try {
+            ic.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_ENTER));
+            ic.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_ENTER));
+        } catch (RuntimeException ignored) {
+        }
     }
 
-    private void rebuild() { buildKeyboard(); setInputView(root); }
+    private void rebuild() {
+        buildKeyboard();
+        setInputView(root);
+    }
 
     private void haptic() {
-        Vibrator v = (Vibrator)getSystemService(VIBRATOR_SERVICE);
-        if (v == null || !v.hasVibrator()) return;
-        if (Build.VERSION.SDK_INT >= 26) v.vibrate(VibrationEffect.createOneShot(10,VibrationEffect.DEFAULT_AMPLITUDE));
-        else v.vibrate(10);
+        try {
+            Vibrator v = (Vibrator)getSystemService(VIBRATOR_SERVICE);
+            if (v == null || !v.hasVibrator()) return;
+            if (Build.VERSION.SDK_INT >= 26) {
+                v.vibrate(VibrationEffect.createOneShot(10,VibrationEffect.DEFAULT_AMPLITUDE));
+            } else {
+                v.vibrate(10);
+            }
+        } catch (SecurityException ignored) {
+            // Vibration is optional; typing must continue if unavailable.
+        } catch (RuntimeException ignored) {
+        }
     }
 }
