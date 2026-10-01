@@ -1,12 +1,16 @@
 package com.bellamiecreative.iphonestylekeyboard;
 
+import android.content.res.Configuration;
 import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.inputmethodservice.InputMethodService;
 import android.os.Build;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.view.Gravity;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -41,109 +45,172 @@ public class KeyboardService extends InputMethodService {
         return root;
     }
 
-    private int dp(float v) { return (int)(v * getResources().getDisplayMetrics().density + 0.5f); }
+    private int dp(float v) {
+        return (int)(v * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private boolean darkMode() {
+        return (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+                == Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    private int rootColor() { return darkMode() ? Color.rgb(20,20,22) : Color.rgb(218,220,224); }
+    private int keyColor() { return darkMode() ? Color.rgb(58,58,60) : Color.WHITE; }
+    private int keyTextColor() { return darkMode() ? Color.WHITE : Color.rgb(25,25,27); }
+    private int actionKeyColor() { return darkMode() ? Color.rgb(78,78,80) : Color.rgb(174,179,185); }
 
     private void buildKeyboard() {
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setGravity(Gravity.CENTER);
-        root.setPadding(dp(4), dp(5), dp(4), dp(5));
-        root.setBackgroundColor(Color.rgb(220, 223, 228));
+        root.setPadding(dp(4), dp(5), dp(4), dp(4));
+        root.setBackgroundColor(rootColor());
+        addHintRow();
 
         String[][] rows = symbols ? SYM : (kurdish ? KU : EN);
         for (int r = 0; r < rows.length; r++) addRow(rows[r], r);
         addBottomRow();
     }
 
+    private void addHintRow() {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(8), 0, dp(8), 0);
+        TextView status = new TextView(this);
+        status.setText(symbols ? "123  •  #+=  •  ABC" : (kurdish ? "کوردی" : "English"));
+        status.setTextSize(12);
+        status.setTextColor(darkMode() ? Color.rgb(205,205,210) : Color.rgb(90,90,95));
+        status.setGravity(Gravity.CENTER);
+        row.addView(status, new LinearLayout.LayoutParams(0, dp(22), 1f));
+        root.addView(row, new LinearLayout.LayoutParams(-1, dp(24)));
+    }
+
     private void addRow(String[] keys, int rowIndex) {
         LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER);
-        row.setPadding(dp(rowIndex == 1 && !symbols ? 14 : 0), dp(2), dp(rowIndex == 1 && !symbols ? 14 : 0), dp(2));
+        int side = (!symbols && rowIndex == 1) ? 15 : 0;
+        row.setPadding(dp(side), dp(2), dp(side), dp(2));
         for (String key : keys) {
             Button b = makeKey(key);
-            float weight = (key.equals("shift") || key.equals("⌫")) ? 1.45f : 1f;
-            row.addView(b, new LinearLayout.LayoutParams(0, dp(43), weight));
+            float weight = (key.equals("shift") || key.equals("⌫")) ? 1.38f : 1f;
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(42), weight);
+            lp.setMargins(dp(2),0,dp(2),0);
+            row.addView(b, lp);
         }
-        root.addView(row, new LinearLayout.LayoutParams(-1, dp(48)));
+        root.addView(row, new LinearLayout.LayoutParams(-1, dp(47)));
     }
 
     private Button makeKey(String key) {
         Button b = new Button(this);
         b.setAllCaps(false);
-        b.setText(key.equals("shift") ? (shifted ? "⇧" : "⇧") : key);
+        b.setText(key.equals("shift") ? "⇧" : key);
         b.setTextSize(key.length() > 1 ? 15 : 21);
-        b.setTextColor(Color.rgb(25,25,25));
+        b.setTextColor(key.equals("shift") && shifted ? Color.rgb(0,122,255) : keyTextColor());
         b.setGravity(Gravity.CENTER);
         b.setPadding(0,0,0,0);
         b.setMinHeight(0);
         b.setMinWidth(0);
-        b.setBackgroundColor(Color.WHITE);
+        b.setIncludeFontPadding(false);
+        b.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+        b.setBackground(makeKeyBackground(key));
         b.setOnClickListener(v -> press(key));
         return b;
     }
 
+    private GradientDrawable makeKeyBackground(String key) {
+        boolean action = key.equals("shift") || key.equals("⌫");
+        boolean bottom = key.equals("123") || key.equals("ABC") || key.equals("😊")
+                || key.equals("🌐") || key.equals("space") || key.equals("return")
+                || key.equals("done") || key.equals("go") || key.equals("next")
+                || key.equals("search") || key.equals("send");
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(dp(6));
+        bg.setColor(action || bottom ? actionKeyColor() : keyColor());
+        if (!darkMode() && !action && !bottom) bg.setStroke(dp(0.5f), Color.rgb(198,200,204));
+        return bg;
+    }
+
     private void addBottomRow() {
         LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER);
-        String[] bottom = {symbols ? "ABC" : "123", "😊", "🌐", "space", "return"};
-        float[] weights = {1.2f, 1.05f, 1.05f, 4.2f, 1.6f};
+        row.setPadding(0,dp(2),0,0);
+        String[] bottom = {symbols ? "ABC" : "123", "😊", "🌐", "space", editorActionLabel()};
+        float[] weights = {1.15f,0.95f,0.95f,4.2f,1.55f};
         for (int i=0;i<bottom.length;i++) {
             Button b = makeKey(bottom[i]);
-            b.setTextSize(bottom[i].equals("space") ? 14 : 16);
-            row.addView(b, new LinearLayout.LayoutParams(0, dp(45), weights[i]));
+            b.setTextSize(bottom[i].equals("space") ? 14 : 15);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0,dp(43),weights[i]);
+            lp.setMargins(dp(2),0,dp(2),0);
+            row.addView(b,lp);
         }
-        root.addView(row, new LinearLayout.LayoutParams(-1, dp(51)));
+        root.addView(row,new LinearLayout.LayoutParams(-1,dp(48)));
+    }
+
+    private String editorActionLabel() {
+        EditorInfo info = getCurrentInputEditorInfo();
+        if (info == null) return "return";
+        int a = info.imeOptions & EditorInfo.IME_MASK_ACTION;
+        if (a == EditorInfo.IME_ACTION_DONE) return "done";
+        if (a == EditorInfo.IME_ACTION_GO) return "go";
+        if (a == EditorInfo.IME_ACTION_NEXT) return "next";
+        if (a == EditorInfo.IME_ACTION_SEARCH) return "search";
+        if (a == EditorInfo.IME_ACTION_SEND) return "send";
+        return "return";
     }
 
     private void press(String key) {
         haptic();
         InputConnection ic = getCurrentInputConnection();
         if (ic == null) return;
+
         if (key.equals("⌫")) {
-            ic.deleteSurroundingText(1, 0);
-        } else if (key.equals("shift")) {
-            shifted = !shifted;
-            buildKeyboard();
-            setInputView(root);
-        } else if (key.equals("123")) {
-            symbols = true;
-            buildKeyboard();
-            setInputView(root);
-        } else if (key.equals("ABC")) {
-            symbols = false;
-            buildKeyboard();
-            setInputView(root);
-        } else if (key.equals("🌐")) {
-            kurdish = !kurdish;
-            symbols = false;
-            shifted = false;
-            buildKeyboard();
-            setInputView(root);
-        } else if (key.equals("😊")) {
-            ic.commitText("😊", 1);
-        } else if (key.equals("space")) {
-            ic.commitText(" ", 1);
-        } else if (key.equals("return")) {
-            ic.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_ENTER));
-            ic.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_ENTER));
-        } else {
-            String out = key;
-            if (!symbols && shifted) {
-                out = key.toUpperCase(Locale.ROOT);
-                shifted = false;
-                buildKeyboard();
-                setInputView(root);
-            }
-            ic.commitText(out, 1);
+            CharSequence selected = ic.getSelectedText(0);
+            if (selected != null && selected.length() > 0) ic.commitText("",1);
+            else ic.deleteSurroundingText(1,0);
+            return;
         }
+        if (key.equals("shift")) { shifted=!shifted; rebuild(); return; }
+        if (key.equals("123")) { symbols=true; shifted=false; rebuild(); return; }
+        if (key.equals("ABC")) { symbols=false; shifted=false; rebuild(); return; }
+        if (key.equals("🌐")) { kurdish=!kurdish; symbols=false; shifted=false; rebuild(); return; }
+        if (key.equals("😊")) { ic.commitText("😀",1); return; }
+        if (key.equals("space")) { ic.commitText(" ",1); return; }
+
+        if (key.equals("return") || key.equals("done") || key.equals("go") || key.equals("next")
+                || key.equals("search") || key.equals("send")) {
+            int action = getEditorAction();
+            if (action != EditorInfo.IME_ACTION_NONE) ic.performEditorAction(action);
+            else sendEnter(ic);
+            return;
+        }
+
+        String out = key;
+        if (!symbols && !kurdish && shifted) {
+            out = key.toUpperCase(Locale.ROOT);
+            shifted=false;
+            rebuild();
+        }
+        ic.commitText(out,1);
     }
+
+    private int getEditorAction() {
+        EditorInfo info = getCurrentInputEditorInfo();
+        if (info == null) return EditorInfo.IME_ACTION_NONE;
+        int a = info.imeOptions & EditorInfo.IME_MASK_ACTION;
+        return a == EditorInfo.IME_ACTION_NONE ? EditorInfo.IME_ACTION_NONE : a;
+    }
+
+    private void sendEnter(InputConnection ic) {
+        ic.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_ENTER));
+        ic.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_ENTER));
+    }
+
+    private void rebuild() { buildKeyboard(); setInputView(root); }
 
     private void haptic() {
         Vibrator v = (Vibrator)getSystemService(VIBRATOR_SERVICE);
         if (v == null || !v.hasVibrator()) return;
-        if (Build.VERSION.SDK_INT >= 26) v.vibrate(VibrationEffect.createOneShot(12, VibrationEffect.DEFAULT_AMPLITUDE));
-        else v.vibrate(12);
+        if (Build.VERSION.SDK_INT >= 26) v.vibrate(VibrationEffect.createOneShot(10,VibrationEffect.DEFAULT_AMPLITUDE));
+        else v.vibrate(10);
     }
 }
